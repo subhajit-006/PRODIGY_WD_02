@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⏱ 00:00:00 | Stopwatch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span class="status-text" id="statusText">● STOPPED</span>
+        </div>
+
+        <!-- Timer Display -->
+        <div class="timer-container" id="timerContainer">
+            <div class="timer-display" id="timerDisplay">
+                00 <span class="colon">:</span> 00 <span class="colon">:</span> 00 <span class="colon">.</span> 00
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="controls-section">
+            <button class="btn btn-start" id="btnStart" title="Start/Pause (Space)">
+                <span class="btn-icon">▶</span>
+                <span>Start</span>
+            </button>
+            <button class="btn btn-reset" id="btnReset" title="Reset (R)">
+                <span class="btn-icon">↻</span>
+                <span>Reset</span>
+            </button>
+            <button class="btn btn-lap" id="btnLap" disabled title="Lap (L)">
+                <span class="btn-icon">🏁</span>
+                <span>Lap</span>
+            </button>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="stats-section">
+            <div class="stat-card">
+                <div class="stat-label">Total Laps</div>
+                <div class="stat-value" id="totalLapsCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Best Lap</div>
+                <div class="stat-value best-tag" id="bestLapTime">--:--</div>
+            </div>
+        </div>
+
+        <!-- Lap List -->
+        <div class="lap-list-container">
+            <div class="lap-list-header">
+                <div>#</div>
+                <div>Lap Time</div>
+                <div>Total</div>
+            </div>
+            <div class="lap-list" id="lapList">
+                <div class="lap-list empty">No laps recorded yet</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Hints -->
+    <div class="keyboard-hints">
+        <div><span class="key">SPACE</span> Start/Pause</div>
+        <div><span class="key">R</span> Reset &nbsp;&nbsp; <span class="key">L</span> Lap</div>
+    </div>
+
+    <script>
+        /* === TIMER STATE === */
+        const state = {
+            isRunning: false,
+            isPaused: false,
+            startTime: null,
+            pausedTime: 0,
+            lastLapTime: 0,
+            laps: [],
+            intervalId: null
+        };
+
+        const elements = {
+            timerDisplay: document.getElementById('timerDisplay'),
+            timerContainer: document.getElementById('timerContainer'),
+            btnStart: document.getElementById('btnStart'),
+            btnReset: document.getElementById('btnReset'),
+            btnLap: document.getElementById('btnLap'),
+            lapList: document.getElementById('lapList'),
+            totalLapsCount: document.getElementById('totalLapsCount'),
+            bestLapTime: document.getElementById('bestLapTime'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            statusText: document.getElementById('statusText')
+        };
+
+        /* === TIMER FUNCTIONS === */
+        function getElapsedTime() {
+            if (!state.isRunning) return state.pausedTime;
+            return Date.now() - state.startTime + state.pausedTime;
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            const milliseconds = Math.floor((ms % 1000) / 10);
+
+            return {
+                hours: String(hours).padStart(2, '0'),
+                minutes: String(minutes).padStart(2, '0'),
+                seconds: String(seconds).padStart(2, '0'),
+                ms: String(milliseconds).padStart(2, '0')
+            };
+        }
+
+        function displayTime(ms) {
+            const time = formatTime(ms);
+            elements.timerDisplay.innerHTML = 
+                `${time.hours} <span class="colon">:</span> ${time.minutes} <span class="colon">:</span> ${time.seconds} <span class="colon">.</span> ${time.ms}`;
+            
+            // Update page title
+            document.title = `⏱ ${time.hours}:${time.minutes}:${time.seconds} | Stopwatch`;
+        }
+
+        function startTimer() {
+            if (state.isRunning) return;
+
+            state.isRunning = true;
+            state.isPaused = false;
+            state.startTime = Date.now();
+
+            elements.btnStart.textContent = '⏸\nPause';
+            elements.btnStart.classList.remove('btn-start');
+            elements.btnStart.classList.add('btn-pause');
+            elements.btnStart.title = 'Pause (Space)';
+
+            elements.btnLap.disabled = false;
+            elements.timerContainer.classList.add('running');
+
+            updateStatus();
+
+            state.intervalId = setInterval(updateDisplay, 10);
+        }
+
+        function pauseTimer() {
+            if (!state.isRunning) return;
+
+            state.isRunning = false;
+            state.isPaused = true;
+            state.pausedTime = getElapsedTime();
+
+            clearInterval(state.intervalId);
+
+            elements.btnStart.textContent = '▶\nResume';
+            elements.btnStart.classList.add('btn-start');
+            elements.btnStart.classList.remove('btn-pause');
+            elements.btnStart.title = 'Resume (Space)';
+
+            elements.btnLap.disabled = true;
+            elements.timerContainer.classList.remove('running');
+
+            updateStatus();
+        }
+
+        function toggleStartPause() {
+            if (state.isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(state.intervalId);
+            state.isRunning = false;
+            state.isPaused = false;
+            state.startTime = null;
+            state.pausedTime = 0;
+            state.lastLapTime = 0;
+            state.laps = [];
+
+            elements.btnStart.textContent = '▶\nStart';
+            elements.btnStart.classList.add('btn-start');
+            elements.btnStart.classList.remove('btn-pause');
+            elements.btnStart.title = 'Start/Pause (Space)';
+
+            elements.btnLap.disabled = true;
+            elements.timerContainer.classList.remove('running');
+
+            displayTime(0);
+            updateLapList();
+            updateStats();
+            updateStatus();
+        }
+
+        /* === LAP FUNCTIONS === */
+        function recordLap() {
+            if (!state.isRunning) return;
+
+            const currentTime = getElapsedTime();
+            const lapTime = currentTime - state.lastLapTime;
+
+            state.laps.push({
+                number: state.laps.length + 1,
+                lapTime: lapTime,
+                totalTime: currentTime
+            });
+
+            state.lastLapTime = currentTime;
+            updateLapList();
+            updateStats();
+        }
+
+        /* === UI UPDATE === */
+        function updateDisplay() {
+            displayTime(getElapsedTime());
+        }
+
+        function updateStatus() {
+            if (state.isRunning) {
+                elements.statusIndicator.className = 'status-indicator running';
+                elements.statusText.textContent = '● RUNNING';
+            } else if (state.isPaused) {
+                elements.statusIndicator.className = 'status-indicator paused';
+                elements.statusText.textContent = '■ PAUSED';
+            } else {
+                elements.statusIndicator.className = 'status-indicator';
+                elements.statusText.textContent = '● STOPPED';
+            }
+        }
+
+        function updateLapList() {
+            const lapListEl = elements.lapList;
+
+            if (state.laps.length === 0) {
+                lapListEl.innerHTML = '<div class="lap-list empty">No laps recorded yet</div>';
+                return;
+            }
+
+            // Find fastest and slowest laps
+            const lapTimes = state.laps.map(lap => lap.lapTime);
+            const fastestTime = Math.min(...lapTimes);
+            const slowestTime = Math.max(...lapTimes);
+
+            lapListEl.innerHTML = state.laps.map(lap => {
+                const lapTimeFormatted = formatTime(lap.lapTime);
+                const totalTimeFormatted = formatTime(lap.totalTime);
+
+                let className = 'lap-item';
+                if (lap.lapTime === fastestTime && state.laps.length > 1) {
+                    className += ' best';
+                } else if (lap.lapTime === slowestTime && state.laps.length > 1) {
+                    className += ' slowest';
+                }
+
+                return `
+                    <div class="${className}">
+                        <div class="lap-number">Lap ${lap.number}</div>
+                        <div class="lap-time">${lapTimeFormatted.minutes}:${lapTimeFormatted.seconds}.${lapTimeFormatted.ms}</div>
+                        <div class="total-time">${totalTimeFormatted.hours}:${totalTimeFormatted.minutes}:${totalTimeFormatted.seconds}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Auto scroll to bottom
+            lapListEl.scrollTop = lapListEl.scrollHeight;
+        }
+
+        function updateStats() {
+            elements.totalLapsCount.textContent = state.laps.length;
+
+            if (state.laps.length > 0) {
+                const bestLap = Math.min(...state.laps.map(l => l.lapTime));
+                const bestTimeFormatted = formatTime(bestLap);
+                elements.bestLapTime.textContent = `${bestTimeFormatted.minutes}:${bestTimeFormatted.seconds}.${bestTimeFormatted.ms}`;
+            } else {
+                elements.bestLapTime.textContent = '--:--';
+            }
+        }
+
+        /* === EVENT LISTENERS === */
+        elements.btnStart.addEventListener('click', toggleStartPause);
+        elements.btnReset.addEventListener('click', resetTimer);
+        elements.btnLap.addEventListener('click', recordLap);
+
+        /* === KEYBOARD SHORTCUTS === */
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                toggleStartPause();
+            } else if (e.key.toLowerCase() === 'r') {
+                resetTimer();
+            } else if (e.key.toLowerCase() === 'l') {
+                recordLap();
+            }
+        });
+
+        /* === INITIALIZATION === */
+        updateStatus();
+        displayTime(0);
+    </script>
+</body>
+</html>
